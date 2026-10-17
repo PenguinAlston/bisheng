@@ -130,3 +130,27 @@ Backend runtime pitfalls (tenant-filter SELECT-only gap, ruff hook import trap, 
 
 **Instruction files (AGENTS.md map).** Root = this file, loaded every session. Auto-loaded on top when editing the matching directory: `src/backend/`, `src/frontend/platform/`, `src/frontend/client/`, `src/frontend/packages/ui/` (shared component library + design-token SSOT), plus deep-dir specials `src/backend/bisheng/core/database/alembic/` (migrations), `src/backend/scripts/` (one-off scripts), `src/backend/bisheng/linsight/` (agent-framework contracts) and `src/backend/bisheng/linsight/builtin_skills/` (skill-pack authoring). Every `CLAUDE.md` is a symlink to its sibling `AGENTS.md` — edit `AGENTS.md` only. Put a new rule in the deepest file covering its scope (cross-app / cross-module → this file; app- or dir-specific → the nearest file); never duplicate a rule across levels — it *will* drift.
 
+---
+
+## Cursor Cloud specific instructions
+
+Cloud Agents boot MySQL, Redis, Elasticsearch, OpenFGA, MinIO, the API, and both Vite apps. Useful addresses:
+
+| Surface | Address |
+| --- | --- |
+| API | `http://127.0.0.1:7860` (`/health`) |
+| Platform UI | `http://127.0.0.1:3001` |
+| Client UI | `http://127.0.0.1:4001/workspace` (dev login: `/workspace/__dev/login`) |
+| MySQL | `127.0.0.1:3306`, database `bisheng`, user `root`, password `1234` |
+| Redis | `127.0.0.1:6379` (app DB index `1`) |
+| Elasticsearch | `http://127.0.0.1:9200` |
+| MinIO | `127.0.0.1:9000`, `minioadmin` / `minioadmin`, `sharepoint` `127.0.0.1:9000` |
+| OpenFGA | `http://127.0.0.1:8080` |
+
+- `src/backend/bisheng/config.yaml` is gitignored. Boot writes it when the file is missing. The MySQL password there is the Fernet ciphertext already in `docker/bisheng/config/config.yaml` (plaintext `1234`).
+- Dev containers use host networking. On these VMs the Docker bridge drops container-to-container packets, so OpenFGA cannot reach MySQL by service DNS.
+- Leave `docker/docker-compose.yml` unused for day-to-day work. It references private registry images and starts the application containers. Milvus is not running; vector search needs it added separately. Celery workers are not started; use the commands in `src/backend/AGENTS.md` when a queue must drain.
+- The login account is the person ID (`external_id`). The first registered user becomes super admin. Boot sets `use_captcha` to false in the `config` table and deletes Redis key `config:initdb_config` on DB `1`, because the captcha image is too distorted to read reliably.
+- After a login page has loaded, `/api/v1/user/public_key` has stored an RSA key. A later plaintext password returns `Decryption failed`. The UI encrypts with that public key; API scripts need to do the same.
+- Client Jest imports `canvas` when the package resolves. Install compiles `canvas.node` with cairo. A resolvable package without that binary makes every Jest file report `Tests: 0 total`.
+
